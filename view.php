@@ -1,5 +1,5 @@
 <?php
-require_once 'db.php';
+require_once 'auth.php'; require_auth(); require_once 'db.php';
 
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 

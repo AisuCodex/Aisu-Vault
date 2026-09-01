@@ -1,5 +1,7 @@
 <?php
 
+require_once 'auth.php';
+require_auth();
 require_once 'db.php';
 
 $stmt = $pdo->query("
@@ -47,6 +49,7 @@ function e($value)
             <span class="button-icon">+</span>
             Add Record
         </a>
+        <a href="logout.php" class="button button-secondary">Log out</a>
 
     </header>
 

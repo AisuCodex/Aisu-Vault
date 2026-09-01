@@ -1,7 +1,7 @@
 <?php
 
 $host = 'localhost';
-$dbname = 'RTLweb';
+$dbname = 'rtlweb';
 $username = 'root';
 $password = '';
 
