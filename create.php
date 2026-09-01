@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Record - RTL Web</title>
+    <title>Add Record - Aisu Vault</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="brand">
             <div class="brand-mark">S</div>
             <div>
-                <h1>RTL Web</h1>
+                <h1>Aisu Vault</h1>
                 <p>Create a new record.</p>
             </div>
         </div>
@@ -163,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
     </main>
     <footer>
-        <p>RTL Web &copy; <?= date('Y') ?></p>
+        <p>Aisu Vault &copy; <?= date('Y') ?></p>
     </footer>
 </div>
 <script src="script.js"></script>

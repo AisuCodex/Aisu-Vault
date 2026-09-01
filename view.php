@@ -26,7 +26,7 @@ function e($value) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= e($record['title']) ?> - RTL Web</title>
+    <title><?= e($record['title']) ?> - Aisu Vault</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -35,7 +35,7 @@ function e($value) {
         <div class="brand">
             <div class="brand-mark">S</div>
             <div>
-                <h1>RTL Web</h1>
+                <h1>Aisu Vault</h1>
                 <p>View record details.</p>
             </div>
         </div>
@@ -93,7 +93,7 @@ function e($value) {
         </div>
     </main>
     <footer>
-        <p>RTL Web &copy; <?= date('Y') ?></p>
+        <p>Aisu Vault &copy; <?= date('Y') ?></p>
     </footer>
 </div>
 </body>

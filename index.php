@@ -25,7 +25,7 @@ function e($value)
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>RTL Web</title>
+    <title>Aisu Vault</title>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -40,7 +40,7 @@ function e($value)
             <div class="brand-mark">S</div>
 
             <div>
-                <h1>RTL Web</h1>
+                <h1>Aisu Vault</h1>
                 <p>Manage your records and files.</p>
             </div>
         </div>
@@ -258,7 +258,7 @@ function e($value)
 
 
     <footer>
-        <p>RTL Web &copy; <?= date('Y') ?></p>
+        <p>Aisu Vault &copy; <?= date('Y') ?></p>
     </footer>
 
 </div>
