@@ -1287,6 +1287,7 @@ body:has(.login-page) .app { width: 100%; max-width: none; margin: 0; }
 .auth-card { padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
 .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: #121212; border-radius: 12px; }
 .auth-tab { border: 0; border-radius: 9px; padding: 11px 8px; background: transparent; color: #737373; cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-tab[data-mode="register"] { display: none; }
 .auth-tab.active { background: #262626; color: #F5F5F5; }
 .auth-panel { padding: 28px 24px 24px; }
 .auth-panel h2 { margin: 0; color: #F5F5F5; font-size: 24px; letter-spacing: -0.03em; }
