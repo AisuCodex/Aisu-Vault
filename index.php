@@ -51,6 +51,9 @@ function e($value)
             <span class="button-icon">+</span>
             Add Record
         </a>
+        <?php if ($isAdmin): ?>
+        <a href="admin.php" class="button button-secondary">Admin Panel</a>
+        <?php endif; ?>
         <a href="logout.php" class="button button-secondary">Log out</a>
 
     </header>
