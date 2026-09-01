@@ -4,6 +4,8 @@ require_once 'auth.php';
 require_auth();
 require_once 'db.php';
 
+$isAdmin = (current_user()['role'] ?? 'user') === 'admin';
+
 $stmt = $pdo->query("
     SELECT *
     FROM records
@@ -225,6 +227,7 @@ function e($value)
                                         </a>
 
 
+                                        <?php if ($isAdmin): ?>
                                         <button
                                             type="button"
                                             class="icon-button danger delete-button"
@@ -235,6 +238,7 @@ function e($value)
                                         >
                                             ×
                                         </button>
+                                        <?php endif; ?>
 
                                     </div>
 
