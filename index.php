@@ -5,13 +5,21 @@ require_auth();
 require_once 'db.php';
 
 $isAdmin = (current_user()['role'] ?? 'user') === 'admin';
-
-$stmt = $pdo->query("
-    SELECT *
-    FROM records
-    ORDER BY created_at DESC
-");
-
+$query = trim($_GET['q'] ?? '');
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 10;
+$where = $query === '' ? '' : ' WHERE title LIKE :query OR description LIKE :query OR file_name LIKE :query';
+$params = $query === '' ? [] : [':query' => "%{$query}%"];
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM records{$where}");
+$countStmt->execute($params);
+$totalRecords = (int)$countStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRecords / $perPage));
+$page = min($page, $totalPages);
+$stmt = $pdo->prepare("SELECT * FROM records{$where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+foreach ($params as $key => $value) { $stmt->bindValue($key, $value, PDO::PARAM_STR); }
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', ($page - 1) * $perPage, PDO::PARAM_INT);
+$stmt->execute();
 $records = $stmt->fetchAll();
 
 function e($value)
@@ -74,12 +82,17 @@ function e($value)
             </div>
 
             <div class="record-count">
-                <strong><?= count($records) ?></strong>
+                <strong><?= $totalRecords ?></strong>
                 <span>Records</span>
             </div>
 
         </section>
 
+        <form method="get" class="search-form">
+            <input type="search" name="q" value="<?= e($query) ?>" placeholder="Search records, descriptions, or files..." aria-label="Search records">
+            <button class="button button-primary" type="submit">Search</button>
+            <?php if ($query !== ''): ?><a href="index.php" class="button button-secondary">Clear</a><?php endif; ?>
+        </form>
 
         <?php if (isset($_GET['success'])): ?>
 
@@ -258,6 +271,14 @@ function e($value)
                 </div>
 
             </section>
+
+            <?php if ($totalPages > 1): ?>
+                <nav class="pagination" aria-label="Record pages">
+                    <?php if ($page > 1): ?><a href="?<?= http_build_query(['q'=>$query,'page'=>$page-1]) ?>" class="button button-secondary">Previous</a><?php endif; ?>
+                    <span>Page <?= $page ?> of <?= $totalPages ?></span>
+                    <?php if ($page < $totalPages): ?><a href="?<?= http_build_query(['q'=>$query,'page'=>$page+1]) ?>" class="button button-secondary">Next</a><?php endif; ?>
+                </nav>
+            <?php endif; ?>
 
         <?php endif; ?>
 
