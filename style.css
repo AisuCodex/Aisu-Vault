@@ -1279,3 +1279,16 @@ body:has(.login-page) .app { width: 100%; max-width: none; margin: 0; }
 .login-switch a { color: #FFFFFF; font-weight: 600; }
 .login-card .button-primary:hover { background: #E5E5E5; }
 @media (max-width: 520px) { .login-card { padding: 24px; } }
+
+/* RTLweb dark application theme */
+:root { --background:#0A0A0A; --surface:#1A1A1A; --surface-secondary:#121212; --text:#F5F5F5; --text-secondary:#A3A3A3; --text-muted:#737373; --border:#333333; --border-dark:#333333; --primary:#FFFFFF; --primary-hover:#E5E5E5; --success-bg:#162719; --success-text:#86EFAC; --error-bg:#2A1515; --error-text:#FCA5A5; }
+body { background:#0A0A0A; color:#F5F5F5; }
+.records-card, .form-card, .record-count { background:#1A1A1A; border-color:#333333; }
+thead { background:#121212; }
+tbody tr:hover { background:#262626; }
+.button-primary { background:#FFFFFF; color:#0A0A0A; }
+.button-primary:hover { background:#E5E5E5; }
+.button-secondary { background:#1A1A1A; border-color:#333333; color:#F5F5F5; }
+.button-secondary:hover { background:#262626; }
+.empty-icon { background:#262626; color:#F5F5F5; }
+
