@@ -21,7 +21,9 @@ button { cursor: pointer; }
 /* AisuVault dark theme */
 :root { --ink: #eeeaf8; --muted: #9691aa; --line: #2d2a3d; --soft: #171522; }
 body { background: #11101a; color: var(--ink); }
+.shell { width: 100%; background: #11101a; }
 .sidebar, .content, .topbar { background: #11101a; }
+.content { max-width: none; }
 .sidebar { border-color: #2d2a3d; }
 .nav-item { color: #9c97ae; }
 .nav-item span, .nav-item small { color: #777188; }
