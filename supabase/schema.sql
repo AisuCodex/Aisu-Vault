@@ -34,6 +34,12 @@ create table public.records (
   constraint content_or_file check ((type = 'note' and content is not null) or (type = 'file' and storage_path is not null))
 );
 
+create table public.record_tags (
+  record_id bigint not null references public.records(id) on delete cascade,
+  tag text not null check (char_length(tag) between 1 and 50),
+  primary key (record_id, tag)
+);
+
 create table public.activity_logs (
   id bigint generated always as identity primary key,
   actor_id uuid references public.profiles(id) on delete set null,
@@ -45,6 +51,7 @@ create table public.activity_logs (
 alter table public.profiles enable row level security;
 alter table public.collections enable row level security;
 alter table public.records enable row level security;
+alter table public.record_tags enable row level security;
 alter table public.activity_logs enable row level security;
 
 create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = public as $$
@@ -52,14 +59,29 @@ create or replace function public.is_admin() returns boolean language sql stable
 $$;
 
 create policy "Users read own profile" on public.profiles for select using (id = auth.uid() or public.is_admin());
+create policy "Users update own profile" on public.profiles for update using (id = auth.uid() or public.is_admin()) with check (id = auth.uid() or public.is_admin());
 create policy "Users read own collections" on public.collections for select using (owner_id = auth.uid() or public.is_admin());
 create policy "Users manage own collections" on public.collections for all using (owner_id = auth.uid() or public.is_admin()) with check (owner_id = auth.uid() or public.is_admin());
 create policy "Users read own records" on public.records for select using (owner_id = auth.uid() or public.is_admin());
 create policy "Users create own records" on public.records for insert with check (owner_id = auth.uid() or public.is_admin());
 create policy "Users update own records" on public.records for update using (owner_id = auth.uid() or public.is_admin()) with check (owner_id = auth.uid() or public.is_admin());
 create policy "Users delete own records" on public.records for delete using (owner_id = auth.uid() or public.is_admin());
+create policy "Users manage own record tags" on public.record_tags for all using (exists (select 1 from public.records where id = record_id and (owner_id = auth.uid() or public.is_admin()))) with check (exists (select 1 from public.records where id = record_id and (owner_id = auth.uid() or public.is_admin())));
 create policy "Admins read activity" on public.activity_logs for select using (actor_id = auth.uid() or public.is_admin());
 create policy "Authenticated create activity" on public.activity_logs for insert with check (actor_id = auth.uid());
+
+create or replace function public.protect_profile_admin_fields() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (new.role is distinct from old.role or new.disabled is distinct from old.disabled) and not public.is_admin() then
+    raise exception 'Only administrators can change role or disabled status';
+  end if;
+  return new;
+end;
+$$;
+create trigger protect_profile_admin_fields before update on public.profiles for each row execute procedure public.protect_profile_admin_fields();
+
+create or replace function public.touch_updated_at() returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
+create trigger records_updated_at before update on public.records for each row execute procedure public.touch_updated_at();
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin insert into public.profiles (id, display_name) values (new.id, coalesce(new.raw_user_meta_data->>'display_name', '')); return new; end;

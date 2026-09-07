@@ -1,108 +1,151 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { getBrowserClient } from "../lib/supabase-browser";
+import { ACCEPTED_FILE_TYPES, validateFile } from "../lib/file-validation";
 
-type RecordItem = {
-  id: number;
-  title: string;
-  type: "note" | "file";
-  category: string;
-  updated: string;
-  size?: string;
-  content?: string;
-};
+type RecordItem = { id: number; title: string; type: "note" | "file"; collection_id: number | null; updated_at: string; archived: boolean; file_size: number | null; content: string | null; storage_path: string | null; file_name: string | null };
+type Collection = { id: number; name: string };
+type UserProfile = { id: string; display_name: string; role: "user" | "admin"; disabled: boolean; created_at: string };
+const ACCEPTED_TYPES = ACCEPTED_FILE_TYPES;
 
-const starterRecords: RecordItem[] = [
-  { id: 1, title: "Q4 planning notes", type: "note", category: "Work", updated: "Today", content: "Priorities, milestones, and team notes for the quarter." },
-  { id: 2, title: "Product roadmap.pdf", type: "file", category: "Work", updated: "Yesterday", size: "2.4 MB" },
-  { id: 3, title: "Travel checklist", type: "note", category: "Personal", updated: "Oct 18, 2024", content: "Passport, chargers, insurance, and reservations." },
-  { id: 4, title: "Tax documents 2024.zip", type: "file", category: "Finance", updated: "Oct 12, 2024", size: "8.1 MB" },
-  { id: 5, title: "Brand guidelines.pdf", type: "file", category: "Work", updated: "Oct 08, 2024", size: "4.7 MB" },
-];
-
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+function formatSize(bytes: number | null) { if (!bytes) return ""; if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
+function formatDate(value: string) { return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value)); }
 
 export default function Home() {
-  const [records, setRecords] = useState<RecordItem[]>(() => {
-    if (typeof window === "undefined") return starterRecords;
-    const saved = window.localStorage.getItem("document-vault-records");
-    return saved ? JSON.parse(saved) : starterRecords;
-  });
+  const supabase = useMemo(() => getBrowserClient(), []);
+  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [userName, setUserName] = useState("Aisu Codex");
+  const [userEmail, setUserEmail] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState<"library" | "admin">("library");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All items");
-  const [modal, setModal] = useState<"note" | "file" | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [modal, setModal] = useState<"note" | "file" | "collection" | null>(null);
+  const [collectionName, setCollectionName] = useState("");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
+  const [selectedCollection, setSelectedCollection] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadVault = useCallback(async () => {
+    setError("");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { window.location.assign("/login"); return; }
+    setUserEmail(user.email ?? "");
+    setUserName(user.user_metadata?.display_name || user.email?.split("@")[0] || "Aisu Codex");
+    const recordsQuery = supabase.from("records").select("id,title,type,collection_id,updated_at,archived,file_size,content,storage_path,file_name").order("updated_at", { ascending: false });
+    if (!showArchived) recordsQuery.eq("archived", false);
+    const [recordsResult, collectionsResult, profilesResult] = await Promise.all([
+      recordsQuery,
+      supabase.from("collections").select("id,name").order("name"),
+      supabase.from("profiles").select("id,display_name,role,disabled,created_at").order("created_at", { ascending: false }),
+    ]);
+    if (recordsResult.error) throw recordsResult.error;
+    if (collectionsResult.error) throw collectionsResult.error;
+    if (profilesResult.error) throw profilesResult.error;
+    const loadedProfiles = (profilesResult.data ?? []) as UserProfile[];
+    const ownProfile = loadedProfiles.find(profile => profile.id === user.id);
+    if (ownProfile?.disabled) { await supabase.auth.signOut(); window.location.assign("/login"); return; }
+    setIsAdmin(ownProfile?.role === "admin"); setRecords((recordsResult.data ?? []) as RecordItem[]); setCollections(collectionsResult.data ?? []); setProfiles(loadedProfiles);
+    setLoading(false);
+  }, [supabase, showArchived]);
 
   useEffect(() => {
-    window.localStorage.setItem("document-vault-records", JSON.stringify(records));
-  }, [records]);
+    const load = async () => {
+      try { await loadVault(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not load your vault."); setLoading(false); }
+    };
+    void load();
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => { if (event === "SIGNED_OUT") window.location.assign("/login"); });
+    return () => listener.subscription.unsubscribe();
+  }, [loadVault, supabase]);
 
-  const categories = ["All items", ...Array.from(new Set(records.map((record) => record.category)))];
-  const filtered = useMemo(() => records.filter((record) => {
-    const matchesQuery = record.title.toLowerCase().includes(query.toLowerCase());
-    const matchesCategory = category === "All items" || record.category === category;
-    return matchesQuery && matchesCategory;
-  }), [records, query, category]);
+  const categories = ["All items", ...collections.map(collection => collection.name)];
+  const filtered = useMemo(() => records.filter(record => {
+    const collection = collections.find(item => item.id === record.collection_id)?.name ?? "Unsorted";
+    return record.title.toLowerCase().includes(query.toLowerCase()) && (category === "All items" || collection === category);
+  }), [records, collections, query, category]);
 
-  function addNote(event: FormEvent) {
+  async function addCollection(event: FormEvent) {
     event.preventDefault();
-    if (!noteTitle.trim()) return;
-    setRecords([{ id: Date.now(), title: noteTitle.trim(), type: "note", category: "Personal", updated: "Just now", content: noteContent }, ...records]);
-    setNoteTitle(""); setNoteContent(""); setModal(null);
+    const name = collectionName.trim();
+    if (!name) return;
+    setSaving(true); setError("");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error: insertError } = await supabase.from("collections").insert({ owner_id: user.id, name });
+    if (insertError) setError(insertError.code === "23505" ? "That collection already exists." : insertError.message);
+    else { setCollectionName(""); setModal(null); await loadVault(); }
+    setSaving(false);
   }
 
-  function addFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setRecords([{ id: Date.now(), title: file.name, type: "file", category: "Personal", updated: "Just now", size: formatSize(file.size) }, ...records]);
-    setModal(null);
+  async function addNote(event: FormEvent) {
+    event.preventDefault(); if (!noteTitle.trim()) return; setSaving(true); setError("");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error: insertError } = await supabase.from("records").insert({ owner_id: user.id, title: noteTitle.trim(), type: "note", content: noteContent, collection_id: selectedCollection ? Number(selectedCollection) : null });
+    if (insertError) setError(insertError.message); else { setNoteTitle(""); setNoteContent(""); setSelectedCollection(""); setModal(null); await loadVault(); }
+    setSaving(false);
   }
 
-  function removeRecord(id: number) { setRecords(records.filter((record) => record.id !== id)); }
+  async function addFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]; if (!file) return; setError("");
+    const fileError = validateFile(file);
+    if (fileError) { setError(fileError); return; }
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser(); if (!user) return;
+    const path = `${user.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const upload = await supabase.storage.from("vault-files").upload(path, file, { contentType: file.type, upsert: false });
+    if (upload.error) { setError(upload.error.message); setSaving(false); return; }
+    const inserted = await supabase.from("records").insert({ owner_id: user.id, title: file.name, type: "file", storage_path: path, file_name: file.name, mime_type: file.type, file_size: file.size, collection_id: selectedCollection ? Number(selectedCollection) : null });
+    if (inserted.error) { await supabase.storage.from("vault-files").remove([path]); setError(inserted.error.message); } else { setSelectedCollection(""); setModal(null); await loadVault(); }
+    setSaving(false);
+  }
 
-  const totalSize = records.reduce((total, record) => total + (record.type === "file" ? 1 : 0), 0);
+  async function removeRecord(record: RecordItem) {
+    if (!window.confirm(`Delete “${record.title}”?`)) return;
+    if (record.storage_path) await supabase.storage.from("vault-files").remove([record.storage_path]);
+    const { error: deleteError } = await supabase.from("records").delete().eq("id", record.id);
+    if (deleteError) setError(deleteError.message); else setRecords(current => current.filter(item => item.id !== record.id));
+  }
+  async function downloadRecord(record: RecordItem) {
+    if (!record.storage_path) return;
+    const { data, error: downloadError } = await supabase.storage.from("vault-files").createSignedUrl(record.storage_path, 60);
+    if (downloadError) { setError(downloadError.message); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+  async function archiveRecord(record: RecordItem) {
+    const { error: archiveError } = await supabase.from("records").update({ archived: !record.archived }).eq("id", record.id);
+    if (archiveError) { setError(archiveError.message); return; }
+    await loadVault();
+  }
+  async function logActivity(action: string, recordId?: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) await supabase.from("activity_logs").insert({ actor_id: user.id, action, record_id: recordId ?? null });
+  }
+  async function updateProfile(profile: UserProfile, changes: Partial<Pick<UserProfile, "role" | "disabled">>) {
+    const { error: updateError } = await supabase.from("profiles").update(changes).eq("id", profile.id);
+    if (updateError) setError(updateError.message); else { await logActivity(`profile_updated:${profile.id}`); await loadVault(); }
+  }
+  async function signOut() { await supabase.auth.signOut(); window.location.assign("/login"); }
+  const totalFiles = records.filter(record => record.type === "file").length;
 
-  return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">◇</span><span>Aisu<span className="brand-accent">Vault</span></span></div>
-        <nav className="nav">
-          <button className={view === "library" ? "nav-item active" : "nav-item"} onClick={() => setView("library")}><span>⌂</span> My library</button>
-          <button className="nav-item"><span>☆</span> Favorites <small>3</small></button>
-          <div className="nav-label">COLLECTIONS</div>
-          <button className="nav-item"><span>▱</span> Work <small>12</small></button>
-          <button className="nav-item"><span>▱</span> Personal <small>8</small></button>
-          <button className="nav-item"><span>▱</span> Finance <small>5</small></button>
-          <button className="nav-item"><span>＋</span> New collection</button>
-          <div className="nav-spacer" />
-          <button className={view === "admin" ? "nav-item active" : "nav-item"} onClick={() => setView("admin")}><span>⚙</span> Admin console</button>
-          <button className="nav-item"><span>?</span> Help & support</button>
-        </nav>
-        <div className="storage"><div className="storage-head"><span>Storage</span><b>24%</b></div><div className="progress"><i /></div><p>2.4 GB of 10 GB used</p><button>Upgrade storage <span>→</span></button></div>
-        <div className="profile"><div className="avatar">AC</div><div><strong>Aisu Codex</strong><span>Free plan</span></div><span className="dots">•••</span></div>
-      </aside>
-      <section className="content">
-        <header className="topbar"><div className="mobile-brand">◇ Aisu<span>Vault</span></div><div className="top-actions"><button className="icon-btn">⌕</button><button className="icon-btn">♧</button><div className="top-avatar">AC</div></div></header>
-        {view === "admin" ? <Admin records={records} onDelete={removeRecord} /> : <>
-          <div className="welcome"><div><p className="eyebrow">MONDAY, OCTOBER 21, 2024</p><h1>Good morning, Aisu <span>✦</span></h1><p className="muted">Your knowledge, organized and within reach.</p></div><div className="actions"><button className="button secondary" onClick={() => setModal("note")}>＋ <span>New note</span></button><button className="button primary" onClick={() => setModal("file")}>↥ <span>Upload file</span></button></div></div>
-          <div className="stats"><div className="stat-card"><div className="stat-icon purple">▱</div><div><span>Total items</span><strong>{records.length}</strong><small className="green">↑ 12% <em>vs last month</em></small></div></div><div className="stat-card"><div className="stat-icon gold">▤</div><div><span>Notes</span><strong>{records.filter((record) => record.type === "note").length}</strong><small className="green">↑ 8% <em>vs last month</em></small></div></div><div className="stat-card"><div className="stat-icon blue">↥</div><div><span>Files</span><strong>{totalSize}</strong><small className="muted">of 10 GB storage</small></div></div><div className="stat-card"><div className="stat-icon green">♧</div><div><span>Shared with you</span><strong>7</strong><small className="green">↑ 3 <em>this week</em></small></div></div></div>
-          <div className="section-head"><div><h2>All items</h2><p className="muted">Everything you&apos;ve saved in one place</p></div><div className="view-toggle"><button className="selected">▦</button><button>☷</button></div></div>
-          <div className="toolbar"><div className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your vault..." /></div><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select><button className="filter">☷ <span>Filters</span></button></div>
-          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Collection</th><th>Last updated</th><th></th></tr></thead><tbody>{filtered.map((record) => <tr key={record.id}><td><div className="record-name"><span className={record.type === "note" ? "record-icon note" : "record-icon file"}>{record.type === "note" ? "≡" : "▤"}</span><div><strong>{record.title}</strong>{record.size && <small>{record.size}</small>}</div></div></td><td><span className={record.type === "note" ? "pill note-pill" : "pill file-pill"}>{record.type === "note" ? "Note" : "PDF / File"}</span></td><td><span className="collection-dot" /> {record.category}</td><td className="muted">{record.updated}</td><td><button className="row-menu" onClick={() => removeRecord(record.id)}>•••</button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="empty">No items match your search.</div>}</div>
-          <p className="showing">Showing <b>{filtered.length}</b> of <b>{records.length}</b> items</p>
-        </>}
-      </section>
-      {modal === "note" && <div className="modal-backdrop"><form className="modal" onSubmit={addNote}><button type="button" className="close" onClick={() => setModal(null)}>×</button><p className="eyebrow">NEW ITEM</p><h2>Create a note</h2><label>Title<input autoFocus value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="e.g. Meeting notes" /></label><label>Content<textarea value={noteContent} onChange={(event) => setNoteContent(event.target.value)} placeholder="Write something worth remembering..." /></label><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setModal(null)}>Cancel</button><button className="button primary">Save note</button></div></form></div>}
-      {modal === "file" && <div className="modal-backdrop"><div className="modal"><button type="button" className="close" onClick={() => setModal(null)}>×</button><p className="eyebrow">UPLOAD</p><h2>Add a file</h2><label className="dropzone"><span className="upload-icon">↥</span><strong>Choose a file to upload</strong><small>PDF, DOCX, XLSX, PNG or JPG up to 25 MB</small><input type="file" onChange={addFile} /></label><button className="button secondary full" onClick={() => setModal(null)}>Cancel</button></div></div>}
-    </main>
-  );
+  if (loading) return <main className="shell"><section className="content"><div className="loading-state">Loading your vault…</div></section></main>;
+  return <main className="shell">
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">◇</span><span>Aisu<span className="brand-accent">Vault</span></span></div><nav className="nav"><button className={view === "library" ? "nav-item active" : "nav-item"} onClick={() => setView("library")}><span>⌂</span> My library</button><div className="nav-label">COLLECTIONS</div>{collections.map(collection => <button className="nav-item" key={collection.id} onClick={() => { setCategory(collection.name); setView("library"); }}><span>▱</span> {collection.name}</button>)}<button className="nav-item" onClick={() => setModal("collection")}><span>＋</span> New collection</button><div className="nav-spacer" />{isAdmin && <button className={view === "admin" ? "nav-item active" : "nav-item"} onClick={() => setView("admin")}><span>⚙</span> Admin console</button>}</nav><div className="storage"><div className="storage-head"><span>Storage</span><b>{Math.min(100, Math.round(records.reduce((sum, item) => sum + (item.file_size ?? 0), 0) / (10 * 1024 * 1024 * 1024) * 100))}%</b></div><div className="progress"><i /></div><p>{formatSize(records.reduce((sum, item) => sum + (item.file_size ?? 0), 0)) || "0 KB"} of 10 GB used</p></div><div className="profile"><div className="avatar">{userName.slice(0, 2).toUpperCase()}</div><div><strong>{userName}</strong><span>{userEmail}</span></div><button className="dots" onClick={signOut} aria-label="Sign out">↪</button></div></aside>
+    <section className="content"><header className="topbar"><div className="mobile-brand">◇ Aisu<span>Vault</span></div><div className="top-actions"><button className="button secondary" onClick={signOut}>Sign out</button><div className="top-avatar">{userName.slice(0, 2).toUpperCase()}</div></div></header>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {view === "admin" && isAdmin ? <Admin records={records} profiles={profiles} onDelete={removeRecord} onUpdateProfile={updateProfile} /> : <><div className="welcome"><div><p className="eyebrow">PRIVATE LIBRARY</p><h1>Good morning, {userName} <span>✦</span></h1><p className="muted">Your knowledge, organized and within reach.</p></div><div className="actions"><button className="button secondary" onClick={() => setModal("note")}>＋ <span>New note</span></button><button className="button primary" onClick={() => setModal("file")}>↥ <span>Upload file</span></button></div></div><div className="stats"><div className="stat-card"><div className="stat-icon purple">▱</div><div><span>Total items</span><strong>{records.length}</strong></div></div><div className="stat-card"><div className="stat-icon gold">▤</div><div><span>Notes</span><strong>{records.filter(record => record.type === "note").length}</strong></div></div><div className="stat-card"><div className="stat-icon blue">↥</div><div><span>Files</span><strong>{totalFiles}</strong><small className="muted">in your vault</small></div></div></div><div className="section-head"><div><h2>All items</h2><p className="muted">Everything you&apos;ve saved in one place</p></div></div><div className="toolbar"><div className="search"><span>⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search your vault..." /></div><select value={category} onChange={event => setCategory(event.target.value)}>{categories.map(item => <option key={item}>{item}</option>)}</select><label className="archive-toggle"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)} /> Show archived</label></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Collection</th><th>Last updated</th><th /></tr></thead><tbody>{filtered.map(record => { const collection = collections.find(item => item.id === record.collection_id)?.name ?? "Unsorted"; return <tr key={record.id}><td><div className="record-name"><span className={record.type === "note" ? "record-icon note" : "record-icon file"}>{record.type === "note" ? "≡" : "▤"}</span><div><strong>{record.title}</strong>{record.file_size && <small>{formatSize(record.file_size)}</small>}</div></div></td><td><span className={record.type === "note" ? "pill note-pill" : "pill file-pill"}>{record.type === "note" ? "Note" : "File"}</span></td><td><span className="collection-dot" /> {collection}</td><td className="muted">{formatDate(record.updated_at)}</td><td><button className="row-menu" onClick={() => archiveRecord(record)}>{record.archived ? "Restore" : "Archive"}</button><button className="row-menu" onClick={() => record.type === "file" ? downloadRecord(record) : setError(record.content || "This note has no content.")}>{record.type === "file" ? "Download" : "View"}</button><button className="row-menu" onClick={() => removeRecord(record)}>Delete</button></td></tr>; })}</tbody></table>{filtered.length === 0 && <div className="empty">{records.length ? "No items match your search." : "Your vault is empty. Create a note or upload a file to get started."}</div>}</div><p className="showing">Showing <b>{filtered.length}</b> of <b>{records.length}</b> items</p></>}
+    </section>
+    {modal === "collection" && <div className="modal-backdrop"><form className="modal" onSubmit={addCollection}><button type="button" className="close" onClick={() => setModal(null)}>×</button><p className="eyebrow">ORGANIZE</p><h2>New collection</h2><label>Name<input required autoFocus maxLength={80} value={collectionName} onChange={event => setCollectionName(event.target.value)} placeholder="e.g. Research" /></label><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setModal(null)}>Cancel</button><button disabled={saving} className="button primary">{saving ? "Creating…" : "Create collection"}</button></div></form></div>}
+    {modal === "note" && <div className="modal-backdrop"><form className="modal" onSubmit={addNote}><button type="button" className="close" onClick={() => setModal(null)}>×</button><p className="eyebrow">NEW ITEM</p><h2>Create a note</h2><label>Title<input required autoFocus value={noteTitle} onChange={event => setNoteTitle(event.target.value)} placeholder="e.g. Meeting notes" /></label><label>Collection<select value={selectedCollection} onChange={event => setSelectedCollection(event.target.value)}><option value="">Unsorted</option>{collections.map(collection => <option value={collection.id} key={collection.id}>{collection.name}</option>)}</select></label><label>Content<textarea value={noteContent} onChange={event => setNoteContent(event.target.value)} placeholder="Write something worth remembering..." /></label><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setModal(null)}>Cancel</button><button disabled={saving} className="button primary">{saving ? "Saving…" : "Save note"}</button></div></form></div>}
+    {modal === "file" && <div className="modal-backdrop"><div className="modal"><button type="button" className="close" onClick={() => setModal(null)}>×</button><p className="eyebrow">PRIVATE UPLOAD</p><h2>Add a file</h2><label>Collection<select value={selectedCollection} onChange={event => setSelectedCollection(event.target.value)}><option value="">Unsorted</option>{collections.map(collection => <option value={collection.id} key={collection.id}>{collection.name}</option>)}</select></label><label className="dropzone"><span className="upload-icon">↥</span><strong>Choose a file to upload</strong><small>PDF, DOCX, XLSX, PNG or JPG up to 25 MB</small><input type="file" accept={ACCEPTED_TYPES.join(",")} onChange={addFile} disabled={saving} /></label><button className="button secondary full" onClick={() => setModal(null)}>Cancel</button></div></div>}
+  </main>;
 }
 
-function Admin({ records, onDelete }: { records: RecordItem[]; onDelete: (id: number) => void }) {
-  return <div className="admin-view"><div className="welcome"><div><p className="eyebrow">ADMIN CONSOLE</p><h1>Workspace overview</h1><p className="muted">Manage your vault and keep everything running smoothly.</p></div><span className="admin-badge">Administrator</span></div><div className="admin-grid"><div className="admin-card"><span className="stat-icon purple">♙</span><div><p>Total members</p><strong>24</strong><small className="green">↑ 6.4%</small></div></div><div className="admin-card"><span className="stat-icon blue">▤</span><div><p>Content items</p><strong>{records.length}</strong><small className="green">↑ 12.1%</small></div></div><div className="admin-card"><span className="stat-icon gold">◷</span><div><p>Storage used</p><strong>2.4 GB</strong><small className="muted">of 10 GB</small></div></div></div><div className="admin-panel"><div className="section-head"><div><h2>Recent content</h2><p className="muted">Review and manage workspace items</p></div><button className="button secondary">Export CSV</button></div><div className="admin-list">{records.slice(0, 5).map((record) => <div className="admin-row" key={record.id}><span className={record.type === "note" ? "record-icon note" : "record-icon file"}>{record.type === "note" ? "≡" : "▤"}</span><div><strong>{record.title}</strong><small>{record.category} · {record.updated}</small></div><span className="status">Active</span><button className="row-menu" onClick={() => onDelete(record.id)}>Delete</button></div>)}</div></div><div className="admin-panel"><div className="section-head"><div><h2>Admin tools</h2><p className="muted">Workspace controls and access management</p></div></div><div className="tool-cards"><button><b>♙ Manage members</b><span>Roles, access, and invitations →</span></button><button><b>◉ Activity log</b><span>Review recent workspace actions →</span></button><button><b>⚙ Workspace settings</b><span>Limits, branding, and preferences →</span></button></div></div></div>;
-}
+function Admin({ records, profiles, onDelete, onUpdateProfile }: { records: RecordItem[]; profiles: UserProfile[]; onDelete: (record: RecordItem) => void; onUpdateProfile: (profile: UserProfile, changes: Partial<Pick<UserProfile, "role" | "disabled">>) => void }) { return <div className="admin-view"><div className="welcome"><div><p className="eyebrow">ADMIN CONSOLE</p><h1>Workspace overview</h1><p className="muted">Manage your vault and keep everything running smoothly.</p></div><span className="admin-badge">Administrator</span></div><div className="admin-grid"><div className="admin-card"><span className="stat-icon purple">▤</span><div><p>Content items</p><strong>{records.length}</strong></div></div><div className="admin-card"><span className="stat-icon blue">↥</span><div><p>Files</p><strong>{records.filter(record => record.type === "file").length}</strong></div></div><div className="admin-card"><span className="stat-icon gold">♙</span><div><p>Members</p><strong>{profiles.length}</strong></div></div></div><div className="admin-panel"><div className="section-head"><div><h2>Members</h2><p className="muted">Manage roles and account access</p></div></div><div className="admin-list">{profiles.map(profile => <div className="admin-row" key={profile.id}><span className="record-icon note">♙</span><div><strong>{profile.display_name || "Unnamed member"}</strong><small>{profile.id}</small></div><select value={profile.role} onChange={event => onUpdateProfile(profile, { role: event.target.value as UserProfile["role"] })} aria-label={`Role for ${profile.display_name || profile.id}`}><option value="user">User</option><option value="admin">Admin</option></select><button className="row-menu" onClick={() => onUpdateProfile(profile, { disabled: !profile.disabled })}>{profile.disabled ? "Enable" : "Disable"}</button></div>)}</div></div><div className="admin-panel"><div className="section-head"><div><h2>Recent content</h2><p className="muted">Review and manage workspace items</p></div></div><div className="admin-list">{records.slice(0, 10).map(record => <div className="admin-row" key={record.id}><span className="record-icon file">▤</span><div><strong>{record.title}</strong><small>{formatDate(record.updated_at)}</small></div><span className="status">{record.archived ? "Archived" : "Active"}</span><button className="row-menu" onClick={() => onDelete(record)}>Delete</button></div>)}</div></div></div>; }
