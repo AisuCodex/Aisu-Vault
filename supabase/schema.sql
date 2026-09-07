@@ -70,6 +70,16 @@ create policy "Users manage own record tags" on public.record_tags for all using
 create policy "Admins read activity" on public.activity_logs for select using (actor_id = auth.uid() or public.is_admin());
 create policy "Authenticated create activity" on public.activity_logs for insert with check (actor_id = auth.uid());
 
+create or replace function public.protect_profile_admin_fields() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (new.role is distinct from old.role or new.disabled is distinct from old.disabled) and not public.is_admin() then
+    raise exception 'Only administrators can change role or disabled status';
+  end if;
+  return new;
+end;
+$$;
+create trigger protect_profile_admin_fields before update on public.profiles for each row execute procedure public.protect_profile_admin_fields();
+
 create or replace function public.touch_updated_at() returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
 create trigger records_updated_at before update on public.records for each row execute procedure public.touch_updated_at();
 
