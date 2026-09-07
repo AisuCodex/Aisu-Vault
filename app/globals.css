@@ -60,4 +60,10 @@ tr:hover td { background: #1d1a2a; }
 .pill.file-pill, .record-icon.file { background: #172d3b; color: #7fc8f5; }
 .collection-dot { background: #9a82ff; }
 .icon-btn, .dots, .row-menu, .close { color: #858096; }
+.row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 205px; }
+.row-menu { min-height: 32px; padding: 7px 10px; border: 1px solid #39344b; border-radius: 6px; background: #211e2e; color: #b9b1cf; font-size: 11px; letter-spacing: 0; line-height: 1.2; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+.row-menu:hover, .row-menu:focus-visible { border-color: #8069d8; background: #30264c; color: #f2effa; outline: none; }
+.row-menu.danger { color: #f19aa8; border-color: #633746; background: #2b1c27; }
+.row-menu.danger:hover, .row-menu.danger:focus-visible { border-color: #c86678; background: #4a2635; }
+@media (max-width: 620px) { .row-actions { min-width: 0; gap: 6px; } .row-menu { min-height: 34px; padding: 8px 10px; } }
 
