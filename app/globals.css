@@ -19,7 +19,10 @@ button { cursor: pointer; }
 @media (max-width: 620px) { .shell { display: block; }.sidebar { display: none; }.content { padding: 0 18px 40px; }.topbar { height: 65px; justify-content: space-between; }.mobile-brand { display: block; font-weight: 750; font-size: 18px; }.mobile-brand:first-letter { color: #7056d8; }.mobile-brand span { color: #7056d8; }.welcome { display: block; margin: 22px 0 25px; }.welcome h1 { font-size: 25px; }.actions { margin-top: 20px; }.actions .button { flex: 1; }.stats { gap: 8px; margin-bottom: 30px; }.stat-card { padding: 12px; gap: 9px; }.stat-icon { width: 32px; height: 32px; font-size: 16px; }.stat-card strong { font-size: 18px; }.stat-card small { display: block; margin-top: 3px; }.toolbar { flex-wrap: wrap; }.search { max-width: none; flex-basis: 100%; }.toolbar select, .filter { height: 36px; flex: 1; }.table-wrap { overflow-x: auto; }table { min-width: 650px; }.admin-grid { grid-template-columns: 1fr; gap: 8px; }.tool-cards { grid-template-columns: 1fr; }.admin-badge { align-self: start; margin-top: 20px; } }
 .auth-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #11101a; }.auth-card { width: min(430px, 100%); padding: 38px; border: 1px solid #2d2a3d; border-radius: 16px; background: #191824; box-shadow: 0 24px 70px #0005; }.auth-brand { padding: 0 0 34px; color: #f2effa; }.auth-card h1 { margin: 0 0 8px; color: #f2effa; font-size: 28px; letter-spacing: -.8px; }.auth-card > .muted { margin-bottom: 24px; }.auth-form { display: grid; gap: 16px; }.auth-form label { color: #eeeaf8; font-size: 11px; font-weight: 700; }.auth-form input { display: block; width: 100%; margin-top: 8px; border: 1px solid #39344b; border-radius: 7px; padding: 12px; outline: 0; background: #14131e; color: #eeeaf8; }.auth-form input:focus { border-color: #917de0; box-shadow: 0 0 0 3px #7056d815; }.auth-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; }.auth-links button { border: 0; background: transparent; color: #b9a8ff; padding: 0; font-size: 11px; }.form-error { margin: 0; color: #f28d9a; font-size: 11px; }.form-success { margin: 0; color: #78d9a8; font-size: 11px; }.loading-state { min-height: 70vh; display: grid; place-items: center; color: #9691aa; }.error-banner { border: 1px solid #713746; background: #3a202c; color: #f4a9b7; border-radius: 8px; padding: 12px 14px; margin: 10px 0 18px; font-size: 12px; }.modal select { display: block; width: 100%; border: 1px solid #39344b; border-radius: 7px; padding: 11px; margin-top: 8px; outline: 0; font-size: 12px; background: #14131e; color: #eeeaf8; }button:disabled { opacity: .55; cursor: wait; }
 .archive-toggle { display: flex; align-items: center; gap: 7px; color: #9691aa; font-size: 11px; white-space: nowrap; }
-.archive-toggle input { accent-color: #7056d8; }
+.note-view-modal { max-width: 620px; }
+.note-view-modal h2 { padding-right: 28px; margin-bottom: 8px; overflow-wrap: anywhere; }
+.note-view-meta { color: #858096; font-size: 11px; margin: 0 0 20px; }
+.note-view-content { min-height: 150px; max-height: 45vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #39344b; border-radius: 8px; background: #14131e; color: #eeeaf8; padding: 16px; font-size: 13px; line-height: 1.65; }
 
 /* AisuVault dark theme */
 :root { --ink: #eeeaf8; --muted: #9691aa; --line: #2d2a3d; --soft: #171522; }
@@ -60,4 +63,10 @@ tr:hover td { background: #1d1a2a; }
 .pill.file-pill, .record-icon.file { background: #172d3b; color: #7fc8f5; }
 .collection-dot { background: #9a82ff; }
 .icon-btn, .dots, .row-menu, .close { color: #858096; }
+.row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 205px; }
+.row-menu { min-height: 32px; padding: 7px 10px; border: 1px solid #39344b; border-radius: 6px; background: #211e2e; color: #b9b1cf; font-size: 11px; letter-spacing: 0; line-height: 1.2; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+.row-menu:hover, .row-menu:focus-visible { border-color: #8069d8; background: #30264c; color: #f2effa; outline: none; }
+.row-menu.danger { color: #f19aa8; border-color: #633746; background: #2b1c27; }
+.row-menu.danger:hover, .row-menu.danger:focus-visible { border-color: #c86678; background: #4a2635; }
+@media (max-width: 620px) { .row-actions { min-width: 0; gap: 6px; } .row-menu { min-height: 34px; padding: 8px 10px; } }
 
